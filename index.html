@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+
+<head>
+    <link href="https://fonts.googleapis.com/css?family=Josefin+Slab|Lato|Rokkitt" rel="stylesheet">
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js"></script>
+    <script src="http://d3js.org/topojson.v2.min.js"></script>
+    <script src="https://d3js.org/d3.v4.min.js"></script>
+    <script src="http://d3js.org/topojson.v2.min.js"></script>
+    <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.9.0/highlight.min.js"></script>
+    <style>
+        body {
+            font-family: 'Rokkitt', serif;
+            text-align: center;
+        }
+        
+        #holder {
+            width: 2310px;
+            margin: 0px;
+            padding: 0px;
+            text-align: left;
+            font-weight: "bold";
+            text-align: center;
+        }
+        
+        h1 {
+            font-size: 60px;
+            padding-top: 30px;
+            padding-bottom: 0px;
+            font-weight: "bold";
+            margin: 0px;
+        }
+        
+        h2 {
+            font-size: 35px;
+            padding: 0px;
+            margin: 0px;
+            font-weight: bold;
+        }
+        
+        #boatPart0 {
+            fill: #696969;
+        }
+        
+        #boatPart1 {
+            fill: #A61919;
+        }
+        
+        #boatPart2 {
+            fill: none;
+        }
+        
+        #boatPart3 {
+            fill: #FF8C00;
+        }
+        
+        body {
+            padding: 0px;
+            margin: 0px;
+        }
+	</style>
+		<title></title>
+	</head>
+	</body>
+		<div id="holder">
+			<h1>Up In Smoke</h1>
+			<h2>An Analysis of the Titanic Disaster by Socioeconomics, Gender, and Age</h2>
+		</div>
+			<script>
+				//initialize svg elements
+				var svg = d3.select("#holder").append("svg")
+				.attr("height", 835)
+				.attr("width", 1400);
+
+				var svg2 = d3.select("#holder").append("svg")
+				.attr("height", 835)
+				.attr("width", 900);
+
+				//Load data, segment into secitions and make into graphs
+				d3.csv("titanic.csv", function (error, data) {
+					rawData = data;
+
+					//loop through the data and separate it by survival and gender
+					var survWomen = [];
+					var survMen = [];
+					var drownWomen = [];
+					var drownMen = [];
+					for (i=0; i < rawData.length; i++) { 
+						if (rawData[i]["survived"]==1 && rawData[i]["sex"]=="female") {
+							survWomen.push(rawData[i]);
+						}
+						else if (rawData[i]["survived"]==0 && rawData[i]["sex"]=="female") {
+							drownWomen.push(rawData[i]);
+						}
+						else if (rawData[i]["survived"]==1 && rawData[i]["sex"]=="male") {
+							survMen.push(rawData[i]);
+						}
+						else {
+							drownMen.push(rawData[i]);
+						}
+					}
+
+					//x scale with padding
+					var fareScale = d3.scaleLinear()
+					.domain([0,530])
+					.range([70,1350]);
+
+					//histogram initializer on the fare value
+					var histogram = d3.histogram()
+			        .domain([0,530])
+	    			.thresholds(fareScale.ticks(50)) //**** CHANGE THIS TO ALTER BINS ****//
+	    			.value(function (d) { return d["fare"]});
+
+					//get bins for each group 
+					var survWomen_bins = histogram(survWomen);
+					var survMen_bins = histogram(survMen);
+					var drownWomen_bins = histogram(drownWomen);
+					var drownMen_bins = histogram(drownMen);
+
+					//build main histogram
+					buildHistogram(survWomen_bins, survMen_bins, drownWomen_bins, drownMen_bins, svg, fareScale);
+
+
+					//create new histogram function to data about classes
+					var ageScale = d3.scaleLinear()
+					.domain([0,80])
+					.range([50,900]);
+
+					var agehistogram = d3.histogram()
+			        .domain([0,80])
+	    			.thresholds(ageScale.ticks(8)) 
+	    			.value(function (d) { return d["age"]});
+
+					//buildPie chart for men in first bin
+					buildAgePie(agehistogram(drownMen_bins[0]), svg);			
+
+
+					//get survial reates for each class for boat smokestacks
+					//new histogram function to organize class infomation
+					var classScale = d3.scaleLinear().domain([0,4]);
+					var histogramClass = d3.histogram()
+			        .domain([0,4])
+	    			.thresholds(classScale.ticks(3))
+	    			.value(function (d) { return d["pclass"]});
+					var classBins = histogramClass(rawData);
+
+					//get percents for each class 
+					var survivalRates = [];
+					for (var j=1; j < 4; j++){
+						survival = 0;
+						for (var index =0; index < classBins[j].length; index++) {
+							if (classBins[j][index]["survived"] == 1) {survival++;}
+						}
+						survivalRates.push((survival / (index +1) *100).toFixed(2));
+					}
+
+					//use rates to add boat to second svg
+					boat(survivalRates, svg2);
+				});
+
+				//add iceburgs and water to first svg
+				makeIceburg(svg);
+
+			//*** *** *** *** *** HISTOGRAM *** *** *** *** ***// 
+				function buildHistogram(swBin, smBin, dwBin, dmBin, svg, xScale) {
+					//y scale
+					var survivorScale = d3.scaleLinear()
+					.range([400, 0]);
+
+					//get max height of all bins for domain y max
+					var maxY = Math.max(
+						d3.max(swBin, function(d) {return d.length;}), 
+						d3.max(smBin, function(d) {return d.length;}), 
+						d3.max(dwBin, function(d) {return d.length;}), 
+						d3.max(dmBin, function(d) {return d.length;})
+					);
+					survivorScale.domain([0, maxY]);
+
+					//Append bars to the svg element using the sizes of the histogram bins. Run this for each group, making the 
+					//rectangles for non-survivors below the x-axis and slightly opaque and men data shifted over one half bin width.
+					//referenced code at https://bl.ocks.org/mbostock/3048450
+					var hist = svg.append("g");
+
+				    hist.selectAll("bar")
+				    .data(swBin)
+				    .enter().append("rect")
+				    .style("fill","D81E5B")
+				    .attr("class", "bar")
+				    .attr("x", 1)
+				    .attr("transform", function(d) {
+						  return "translate(" + xScale(d.x0) + "," + survivorScale(d.length) + ")"; })
+				    .attr("width", function(d) { return (xScale(d.x1) - xScale(d.x0))/2; }) 
+				    .attr("height", function(d) { return 400 -survivorScale(d.length);});
+
+					hist.selectAll("bar")
+				    .data(dwBin)
+				    .enter().append("rect")
+				    .style("fill","D81E5B")
+				    .attr("class", "bar2")
+				    .attr("x", 1)
+				    .attr("transform", function(d) {
+						  return "translate(" + xScale(d.x0) + ",400)"; })
+				    .attr("width", function(d) { return (xScale(d.x1) - xScale(d.x0))/2; }) 
+				    .attr("height", function(d) { return 400 - survivorScale(d.length);})
+				    .style("fill-opacity", .75);
+
+				    hist.selectAll("bar")
+				    .data(smBin)
+				    .enter().append("rect")
+				    .style("fill","3E92CC")
+				    .attr("class", "bar2")
+				    .attr("x", 1)
+				    .attr("transform", function(d) {
+						  return "translate(" + (xScale(d.x0) + ((xScale(d.x1) - xScale(d.x0))/2)) + "," + survivorScale(d.length) + ")"; })
+				    .attr("width", function(d) { return (xScale(d.x1) - xScale(d.x0))/2; }) 
+				    .attr("height", function(d) { return 400 - survivorScale(d.length);});
+
+				    hist.selectAll("bar")
+				    .data(dmBin)
+				    .enter().append("rect")
+				    .style("fill","3E92CC")
+				    .attr("class", "bar2")
+				    .attr("x", 1)
+				    .attr("transform", function(d) {
+						  return "translate(" + (xScale(d.x0) + ((xScale(d.x1) - xScale(d.x0))/2)) + ",400)"; })
+				    .attr("width", function(d) { return (xScale(d.x1) - xScale(d.x0))/2; }) 
+				    .attr("height", function(d) { return 400 - survivorScale(d.length);})
+				    .style("fill-opacity", .75);
+
+				    //add axes 
+					var xaxis = d3.axisBottom(xScale).ticks(50).tickPadding(3);
+					hist.append("g")
+					.call(xaxis)
+					.attr("transform", "translate(0,400)")
+					.style("font-size","9px");
+
+					//switch the range of the bottom scale
+					yBottom = survivorScale;
+					yBottom.range([0,400]);
+					var yaxisBottom = d3.axisLeft(yBottom).ticks(15).tickPadding(3);
+					hist.append("g")
+					.call(yaxisBottom)
+					.attr("transform", "translate(70,400)")
+					.style("font-size","9px");
+
+					//create similar scale for top, but only 1/2 the length
+					var survivorScaleTop = d3.scaleLinear()
+					.domain([0, maxY/2])
+					.range([400/2, 0]);
+					var yaxisTop = d3.axisLeft(survivorScaleTop).ticks(15/2).tickPadding(3);
+					hist.append("g")
+					.call(yaxisTop)
+					.attr("transform", "translate(70," + (400)/2 + ")")
+					.style("font-size","9px");
+
+					//add text
+					hist.append("text")
+					.attr("x", 550)
+					.attr("y", 50)
+					.text("Survivals and Deaths by Fare and Gender")
+					.attr("text-anchor", "middle")
+					.attr("alignment-baseline","central") 
+					.style("font-size", 30);
+
+					hist.append("text")
+					.attr("x", -290)
+					.attr("y", 25)
+					.text("Survivors (person)")
+					.attr("text-anchor", "middle")
+					.attr("alignment-baseline","central")
+					.style("font-size", 15)
+					.attr("transform", "rotate(-90)");
+
+					hist.append("text")
+					.attr("x", -570)
+					.attr("y", 25)
+					.text("Deaths (person)")
+					.attr("text-anchor", "middle")
+					.attr("alignment-baseline","central")
+					.style("font-size", 15)
+					.attr("transform", "rotate(-90)");
+
+					hist.append("text")
+					.attr("x", 600)
+					.attr("y", 440)
+					.text("Fare Paid (USD)")
+					.attr("text-anchor", "middle")
+					.attr("alignment-baseline","central")
+					.style("font-size", 15);
+
+					hist.append("rect")
+					.attr("x", 1200)
+					.attr("y", 170)
+					.attr("width", 15)
+					.attr("height", 15)
+					.style("fill","D81E5B");
+
+					hist.append("text")
+					.attr("x", 1225)
+					.attr("y", 178)
+					.text("Women")
+					.attr("text-anchor", "left")
+					.attr("alignment-baseline","central")
+					.style("font-size", 15)
+
+					hist.append("rect")
+					.attr("x", 1200)
+					.attr("y", 150)
+					.attr("width", 15)
+					.attr("height", 15)
+					.style("fill","3E92CC");
+
+					hist.append("text")
+					.attr("x", 1225)
+					.attr("y", 158)
+					.text("Men")
+					.attr("text-anchor", "left")
+					.attr("alignment-baseline","central")
+					.style("font-size", 15);
+				}
+
+
+			//*** *** *** *** *** PIE CHART *** *** *** *** ***// 
+			    //code based on the version 3 tutorial at https://bl.ocks.org/mbostock/3887235
+			    function buildAgePie(bins, svg) { 
+					var width = 1200;
+			        var height = 800;
+			        var radius = 110;
+			        var color = d3.scaleOrdinal().range(['#fff6e8','#ffeed1','#ffdea3','#ffce75','#ffbe47','#ffb630', "#ffa500","#e69500", "#cd8400"]);
+
+		            var totalPie = svg.append("g");
+
+		            var pie = d3.pie()
+				    .sort(null)
+				    .value(function(d) { return d.length});
+
+				    //arcs for data
+					var arc = d3.arc()
+		            .innerRadius(radius - 70)
+		            .outerRadius(radius);
+
+		            //arcs for labels
+		            var labelArc = d3.arc()
+				    .outerRadius(radius + 30)
+				    .innerRadius(radius + 30);
+
+		            var g = svg.selectAll(".arc")
+				    .data(pie(bins))
+				    .enter().append("g")
+				    .attr("class", "arc");
+
+			        g.append("path")
+				    .attr("d", arc)
+				    .style("fill", function(d,i) { return color(i); });
+
+				    g.append("text")
+				    .attr("transform", function(d,i) { 
+				    	var point = labelArc.centroid(d);
+				    	str = "translate(" + point + ")";
+				    	if (i > 4) {
+				    		str += " rotate(92)";
+				    	} 
+				    	if (i==4) {
+				    		str += " rotate(60)";
+				    	}
+				    	return str;
+				    })
+				    .style("font-size", 11)
+				    .attr("text-anchor", "center")
+				    .attr("alignment-baseline","central")
+				    .text(function(d,i) { 
+				    	return (10*(i-1) + 10) + "-" + (10*(i) + 9);
+				    });
+
+					//added arc and line to point to the pie chart
+					var fancyArc = d3.arc()
+				    .innerRadius(radius + 50)
+				    .outerRadius(radius + 50)
+				    .startAngle(-160 * (Math.PI/180)) 
+				    .endAngle(-20 * (Math.PI/180)) 
+
+					g.append("path")
+				    .attr("d", fancyArc)
+				    .style("stroke-dasharray", ("1, 3"))
+					.attr("stroke","gray")
+				    .attr("stroke-width", "1.2")
+				    .attr("opacity", .8);
+
+				    //translate elements
+					g.attr('transform', 'translate(' + (width- radius - 280) + ',' + (height- radius - 20) +')');
+
+					//add text
+					var titlex = 970;
+					var titley = 570;
+
+					svg.append("text")
+					.attr("x", titlex - 50)
+					.attr("y", titley - 45)
+					.text("Women and Children First?")
+					.attr("text-anchor", "left")
+					.style("font-size", 25);
+
+					svg.append("text")
+					.attr("x", titlex -8)
+					.attr("y", titley)
+					.text("Age Composition of Male Deaths in Lowest Fare Bin")
+					.attr("text-anchor", "left")
+					.style("font-size", 19);
+
+					svg.append("text")
+					.attr("x", titlex + 12)
+					.attr("y", titley + 15)
+					.style("font-weight", "normal")
+					.text("It is often said that women and children were the first to be")
+					.attr("text-anchor", "left")
+					.attr("alignment-baseline","central")
+					.style("font-size", 14)
+					.style("font-family", "Lato");
+
+					svg.append("text")
+					.attr("x", titlex + 12)
+					.attr("y", titley+ 30)
+					.style("font-weight", "normal")
+					.text("evacuated when the Titanic was sinking. This distribution shows")
+					.attr("text-anchor", "left")
+					.attr("alignment-baseline","central")
+					.style("font-size", 14)
+					.style("font-family", "Lato");
+
+					svg.append("text")
+					.attr("x", titlex + 12)
+					.attr("y", titley + 45)
+					.style("font-weight", "normal")
+					.text("otherwise - almost a half of the men who died in the largest fare ")
+					.attr("text-anchor", "left")
+					.attr("alignment-baseline","central")
+					.style("font-size", 14)
+					.style("font-family", "Lato");
+
+					totalPie.append("text")
+					.attr("x", titlex + 12)
+					.attr("y", titley + 60)
+					.style("font-weight", "normal")
+					.text("group were children and young adults.")
+					.attr("text-anchor", "left")
+					.attr("alignment-baseline","central")
+					.style("font-size", 14)
+					.style("font-family", "Lato");
+
+					totalPie.append("path")
+					.attr("d", "M95,790 L653,700")
+					.style("stroke-dasharray", ("3, 3"))
+					.attr("stroke","gray")
+				    .attr("stroke-width", "1");
+			    }
+
+        //*** *** *** *** *** DESIGN ELEMENTS *** *** *** *** ***// 
+		        //path coordinates for images extracted using http://imagemap-generator.dariodomi.de/
+		        //boat image: http://www.clipartbay.com/cliparts/titanic-iceberg-clip-art-kipebtt.gif
+		        //iceberg image: https://thumb9.shutterstock.com/display_pic_with_logo/450076/546696442/stock-vector-iceberg-vector-icon-illustration-on-blue-background-iceberg-vector-poster-iceberg-vector-clip-art-546696442.jpg
+
+		        //add water to an svg
+		        function water(svg) {
+		            svg.append("rect")
+		                .attr("x", 0)
+		                .attr("y", 400)
+		                .attr("height", 900)
+		                .attr("width", 1800)
+		                .attr("fill", "skyblue")
+		                .attr("fill-opacity", "0.5");
+		        }
+		   
+		        //add an iceberg to an svg (with water)               
+		        function makeIceburg(svg) {
+		            function iceBerg(svg) {
+		                svg.append("path")
+		                    .attr("class", ".iceBerg")
+		                    .attr("transform", "translate(525,48) scale(2.2)")
+		                    .attr("d", "M124,162,L163,97,L197,84,L226,43,L276,110,L304,118,L328,160,L302,250,L286,258,L258,356,L242,343,L221,393,L179,294,L170,298Z")
+		                    .attr("stroke", "skyblue")
+		                    .attr("stroke-width", "0.5")
+		                    .attr("fill", "skyblue");
+
+		            }
+		        
+		            //white fill element to add texture to iceberg
+		            function icebergTexture(svg) {
+		                svg.append("path")
+		                    .attr("class", ".iceBerg")
+		                    .attr("transform", "translate(525,48) scale(2.2)")
+		                    .attr("d", "M132,156,L166,100,L200,88,L225,51,L233,106,L198,146,L243,124,L278,155Z")
+		                    .attr("stroke", "white")
+		                    .attr("stroke-width", "0.4")
+		                    .attr("fill", "white");
+		            }
+
+		            function icebergUnderwater(svg) {
+		                svg.append("path")
+		                    .attr("class", ".iceBerg")
+		                    .attr("transform", "translate(525,48) scale(2.2)")
+		                    .attr("d", "M124,162,L328,160,L302,250,L286,258,L258,356,L242,343,L221,393,L179,294,L170,298Z")
+		                    .attr("stroke", "white")
+		                    .attr("stroke-width", "0.4")
+		                    .attr("fill", "white")
+		                    .style("opacity", .2);
+		            }
+		                 
+	                water(svg);
+                	iceBerg(svg);
+                	icebergTexture(svg);
+                	icebergUnderwater(svg);
+				}
+				
+               	//add boat to svg with water
+			    function boat(data, svg) {
+                   					
+					svg.append("text")
+					.attr("x", 475)
+					.attr("y", 50)
+					.text("Survival Rate By Passenger Class")
+					.attr("text-anchor", "middle")
+					.attr("alignment-baseline","central")
+					.style("font-size", 30);
+
+
+			        //creating array of boat coordinates
+				    var boatCoords = ["M146,115,L186,174,L350,174,L387,117Z", "M141,101,L148,114,L388,115,L394,102Z",
+				    "M183,101,L189,93,L372,90,L380,101Z", "M202,92,L205,83,L357,83,L361,90Z"];
+
+		            //add smokestacks
+		            var stackScale = d3.scaleLinear().domain([0, 100]).range([83, 3]);
+		            var barGenerator = d3.line()
+		                .x(function (d) {
+		                    return d[0];
+		                })
+		                .y(function (d) {
+		                    console.log(d[1] + " " + stackScale(d[1]));
+		                    return stackScale(d[1]);
+		                });
+
+		            //using smokestack data for bars
+		            data.forEach(function (d, i) {
+		                svg.append("path")
+		                    .attr("d", barGenerator([[i * 50 + 155, 0], [i * 50 + 155, d], [i * 50 + 155 + 25, d], [i * 50 + 155 + 25, 0]]))
+		                    .attr("stroke", "black")
+		                    .attr("stroke-width", "2")
+		                    .attr("fill", "#d3d3d3")
+		                    .attr("class", "allBoat")
+		                    .attr("transform", "translate(0,50) scale(2.3)");
+		            });
+
+		            var extraTranslate = 59;
+
+		            //build boat
+		            boatCoords.forEach(function (d) {
+		                console.log(boatCoords.indexOf(d));
+		                svg.append("path")
+		                    .attr("class", "allBoat")
+		                    .attr("id", "boatPart" + boatCoords.indexOf(d))
+		                    .attr("d", d)
+		                    .attr("stroke", "black")
+		                    .attr("stroke-width", "2")
+		                    .attr("fill", "white")
+		                    .attr("transform", "translate(-150,50) scale(2.3)")
+		            })
+
+		            //add labels
+		            for (i = 0; i < 3; i++) {
+		                svg.append("text")
+		                    .attr("class", "allBoat")
+		                    //.attr("id", "smokeStackTag" + (i+1))
+		                    .attr("x", 383 + i * 2 * extraTranslate)
+		                    .attr("y", 100)
+		                    .text(
+		                        function () {
+		                            if (i == 0) {
+		                                return "1st Class";
+		                            } else if (i == 1) {
+		                                return "2nd Class";
+		                            } else {
+		                                return "3rd Class";
+		                            }
+		                        }
+		                    )
+		                    .style("font-size", 15)
+		                    .attr("alignment-baseline", "central")
+		                    .attr("text-anchor", "middle")
+		                    .attr("transform", "translate(" + (-i * 2 * extraTranslate) + ",0");
+
+		                svg.append("text")
+		                    .attr("class", "allBoat")
+		                    .attr("x", 383 + i * 2 * extraTranslate)
+		                    .attr("y", 115)
+		                    .text(data[i] + "%")
+		                    .style("font-size", 15)
+		                    .attr("alignment-baseline", "central")
+		                    .attr("text-anchor", "middle")
+		                    .attr("transform", "translate(" + (-i * 2 * extraTranslate) + ",0");
+		            }
+
+		            water(svg2);
+
+		            //add text 
+		            var titlex = 300;
+		            var titley = 525;
+		            svg.append("text")
+		                .attr("class", "textBoat")
+		                .attr("x", titlex - 55)
+		                .attr("y", titley)
+		                .text("It Pays to Pay More!")
+		                .attr("text-anchor", "left")
+		                .style("font-size", 25);
+
+		            svg.append("text")
+		                .attr("class", "textBoat")
+		                .attr("x", titlex - 55)
+		                .attr("y", titley + 35)
+		                .style("font-weight", "normal")
+		                .text("There is a stark difference between passenger survivial rates for the various")
+		                .attr("text-anchor", "left")
+		                .attr("alignment-baseline", "central")
+		                .style("font-size", 14)
+		                .style("font-family", "Lato");
+
+		            svg.append("text")
+		                .attr("class", "textBoat")
+		                .attr("x", titlex - 55)
+		                .attr("y", titley + 50)
+		                .style("font-weight", "normal")
+		                .text("classes on the boat. Those who paid the most had the best chance of survival,")
+		                .attr("text-anchor", "left")
+		                .attr("alignment-baseline", "central")
+		                .style("font-size", 14)
+		                .style("font-family", "Lato");
+
+		            svg.append("text")
+		                .attr("class", "textBoat")
+		                .attr("x", titlex - 55)
+		                .attr("y", titley + 65)
+		                .style("font-weight", "normal")
+		                .text("as they were prioritized in the evacuation. However, this did not save everyone!")
+		                .attr("text-anchor", "left")
+		                .attr("alignment-baseline", "central")
+		                .style("font-size", 14)
+		                .style("font-family", "Lato");
+
+		            svg.append("text")
+		                .attr("class", "textBoat")
+		                .attr("x", titlex - 55)
+		                .attr("y", titley + 80)
+		                .style("font-weight", "normal")
+		                .text("The richest man on the Titanic, John Astor, did not make it out alive.")
+		                .attr("text-anchor", "left")
+		                .attr("alignment-baseline", "central")
+		                .style("font-size", 14)
+		                .style("font-family", "Lato");
+
+		            svg.selectAll(".textBoat")
+		                .attr("transform", "translate(0,5)");
+		        }
+			</script>
+		</div>
+	</body>
+
+</html>
